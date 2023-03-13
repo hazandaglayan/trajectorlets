@@ -10,12 +10,12 @@ __author__ = 'Simon Vary, Hazan Daglayan'
 
 import numpy as np
 
-from nopt.constraints import FixedRank, PositiveSparsity
-from nopt.problems import LinearProblemSum
-from nopt.solvers import NAHT
+from pynopt.nopt.constraints import FixedRank, PositiveSparsity
+from pynopt.nopt.problems import LinearProblemSum
+from pynopt.nopt.solvers import NAHT
 
-from nopt.transforms import EntryWise, CompositeTransform
-from nopt.transforms.identity import Identity
+from pynopt.nopt.transforms import EntryWise, CompositeTransform
+from pynopt.nopt.transforms.identity import Identity
 
 
 import vip_hci as vip
@@ -87,7 +87,7 @@ def create_annular_regions(cube_shape, r_in, r_out, r_by, center):
 
 def exoplanet_lrpt_annular(cube, angle_list,  fwhm, inner_rad=0, outer_rad=10, 
                            asize=10, r=20, s=10, MAX_ITER=30, psfn = None, 
-                           normalize = True, lsqr_init=False, verbosity=2):
+                           normalize = True, lsqr_init=False, verbosity=2, maxtime=120):
     '''
         Params:
             - cube (data cube)
@@ -120,6 +120,7 @@ def exoplanet_lrpt_annular(cube, angle_list,  fwhm, inner_rad=0, outer_rad=10,
     annular_regions_frame, annular_regions_cube = create_annular_regions(cube_in.shape, 
                                                     inner_rad, outer_rad, asize, 
                                                     (cx, cy))
+    all_pixels = sum(annular_regions_cube).reshape(cube_in.shape)
     kernel = psfn / np.linalg.norm(psfn)
 
     
@@ -152,7 +153,7 @@ def exoplanet_lrpt_annular(cube, angle_list,  fwhm, inner_rad=0, outer_rad=10,
         # Define the problem
         problem = LinearProblemSum(As, b, constraints)
         solver = NAHT(logverbosity = 2, maxiter = MAX_ITER, 
-                      verbosity = verbosity, maxtime=2*60, minreldecrease = 1-1e6)
+                      verbosity = verbosity, maxtime=maxtime, minreldecrease = 1-1e6)
 
         # Initialization with LSQR
         if lsqr_init:
@@ -169,7 +170,12 @@ def exoplanet_lrpt_annular(cube, angle_list,  fwhm, inner_rad=0, outer_rad=10,
         
         # Assign solution to the frames and cubes
         x_frame[outp_ind_frame] = x[1][outp_ind_frame]
-        cube_background[annular_regions_cube[i].reshape(cube_in.shape)] = x[0]
+        ann_3D = annular_regions_cube[i].reshape(cube_in.shape)
+        cube_background[ann_3D] = x[0]
+        
+        # Return to nonnormalized values 
+        if normalize:
+            cube_background[ann_3D] = (cube_background*stdev_frame)[ann_3D]
         
         opt_log.append(opt_log_ann)
         
@@ -179,10 +185,6 @@ def exoplanet_lrpt_annular(cube, angle_list,  fwhm, inner_rad=0, outer_rad=10,
     cube_planet_ = y.reshape(cube_in.shape)
     cube_planet = vip.preproc.cube_derotate(cube_planet_, angle_list, imlib='skimage')
     
-    # Return to nonnormalized values 
-    if normalize:
-        cube_background = cube_background*stdev_frame
 
-
-    return (cube_planet[0], cube_background, opt_log)
+    return (cube_planet[0], cube_background, all_pixels, opt_log)
     
