@@ -49,12 +49,12 @@ class Trajectorlet(pylops.LinearOperator):
         y = self._conv2d.matvec(x)
         cube_out = np.tile(y, (self._shape_cube[0], 1))
         cube_der = vip.preproc.cube_derotate(cube_out.reshape(self._shape_cube),
-                                             -self._angles, imlib='skimage')
+                                             -self._angles, imlib='opencv')
         return cube_der.flatten()
 
     def _rmatvec(self, y): # Adjoint operation \Psi^T(y)
         der_cube = vip.preproc.cube_derotate(y.reshape(self._shape_cube), 
-                                             self._angles, imlib='skimage')
+                                             self._angles, imlib='opencv')
         x = self._conv2d.rmatvec(der_cube.sum(axis=0).flatten())
         return x
 
@@ -166,7 +166,7 @@ def exoplanet_lrpt_annular(cube, angle_list,  fwhm, inner_rad=0, outer_rad=10,
             x0 = None
 
         # Solve the problem
-        x, opt_log_ann = solver.solve(problem, x0=x0) 
+        x, opt_log_ann = solver.solve(problem, x=x0) 
         
         # Assign solution to the frames and cubes
         x_frame[outp_ind_frame] = x[1][outp_ind_frame]
@@ -183,7 +183,7 @@ def exoplanet_lrpt_annular(cube, angle_list,  fwhm, inner_rad=0, outer_rad=10,
     # Convolution
     y = trajectorlet._matvec(x_frame)
     cube_planet_ = y.reshape(cube_in.shape)
-    cube_planet = vip.preproc.cube_derotate(cube_planet_, angle_list, imlib='skimage')
+    cube_planet = vip.preproc.cube_derotate(cube_planet_, angle_list, imlib='opencv')
     
 
     return (cube_planet[0], cube_background, all_pixels, opt_log)
